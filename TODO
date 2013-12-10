@@ -1,0 +1,14 @@
+Consider what a non-pandas version of this code would be like
+- maybe makes dependencies/maintainability easier for others
+- pulling JSON data from web isn't really any harder
+- writing CSVs isn't much harder
+- uglier for doing things like "fetch all projects for this set of appeals"
+
+Test upload to CKAN
+ - this might need to wait on new release of CKAN?
+ - I've manually uploaded at least one example of each file
+
+Document column descriptions for each dataframe that can be returned by queries
+
+Perhaps unify appeal vs emergency handling in script args by making users pass in kwargs?
+  - appeal_id=1234 vs emergency_id=9876, or similar, then build URL based on what kwarg was used
