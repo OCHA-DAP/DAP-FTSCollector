@@ -1,6 +1,6 @@
 """
 Can be used to produce the following CSV files for upload into CKAN:
-  - sectors.csv
+  - sectors.csv  <-- not sure if this is necessary/useful
   - countries.csv
   - organizations.csv
   - emergencies.csv (for a given country)
@@ -62,7 +62,7 @@ def produce_global_csvs(base_output_dir):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    produce_sectors_csv(output_dir)
+    # produce_sectors_csv(output_dir)  # not sure if this is necessary
     produce_countries_csv(output_dir)
     produce_organizations_csv(output_dir)
 
@@ -84,7 +84,13 @@ def produce_projects_csv_for_country(output_dir, country):
     # then get all projects corresponding to those appeals and concatenate into one big frame
     list_of_projects = [fts_queries.fetch_projects_json_for_appeal_as_dataframe(appeal_id) for appeal_id in appeal_ids]
     list_of_non_empty_projects = filter_out_empty_dataframes(list_of_projects)
-    projects_frame = pd.concat(list_of_non_empty_projects)
+
+    if list_of_non_empty_projects:
+        projects_frame = pd.concat(list_of_non_empty_projects)
+    else:
+        # we have a choice, missing file or empty file... here I go with empty file
+        projects_frame = pd.DataFrame()
+
     write_dataframe_to_csv(projects_frame, build_csv_path(output_dir, 'projects', country=country))
 
 
@@ -96,7 +102,13 @@ def produce_contributions_csv_for_country(output_dir, country):
     list_of_contributions = [fts_queries.fetch_contributions_json_for_emergency_as_dataframe(emergency_id)
                              for emergency_id in emergency_ids]
     list_of_non_empty_contributions = filter_out_empty_dataframes(list_of_contributions)
-    contributions_master_frame = pd.concat(list_of_non_empty_contributions)
+
+    if list_of_non_empty_contributions:
+        contributions_master_frame = pd.concat(list_of_non_empty_contributions)
+    else:
+        # we have a choice, missing file or empty file... here I go with empty file
+        contributions_master_frame = pd.DataFrame()
+
     write_dataframe_to_csv(contributions_master_frame, build_csv_path(output_dir, 'contributions', country=country))
 
 
@@ -113,7 +125,9 @@ def produce_csvs_for_country(base_output_dir, country):
 
 if __name__ == "__main__":
     # output all CSVs for the given countries to '/tmp/'
-    country_codes = ['COL', 'SSD', 'YEM', 'PAK']  # the set of starter countries for DAP
+    # country_codes = ['COL', 'KEN', 'YEM']  # starter countries for HDX
+    country_codes = fts_queries.fetch_countries_json_as_dataframe().iso_code_A
+
     tmp_output_dir = '/tmp/'
 
     produce_global_csvs(tmp_output_dir)
