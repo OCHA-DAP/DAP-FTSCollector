@@ -5,7 +5,9 @@ Builds CHD indicators from FTS queries
 import fts_queries
 import os
 import datetime
+import sqlite3
 import pandas as pd
+import pandas.io.sql as sql
 
 
 # note relying on strings is fragile - could break if things get renamed in FTS
@@ -121,6 +123,22 @@ def write_values_as_scraperwiki_style_csv(base_dir):
     filename = os.path.join(base_dir, 'value.csv')
     values.to_csv(filename, index=False)
 
+
+def write_values_as_scraperwiki_style_sql(base_dir):
+    TABLE_NAME = "value"
+    values = get_values_as_dataframe()
+    values['dsID'] = 'fts'
+    values['is_number'] = 1
+    values['source'] = ''
+    values = values.rename(columns={'indicator': 'indID', 'year': 'period'})
+    values = values[['dsID', 'region', 'indID', 'period', 'value', 'is_number', 'source']]
+
+    filename = os.path.join(base_dir, 'scraperwiki.sqlite')
+    sqlite_db = sqlite3.connect(filename)
+    sqlite_db.execute("drop table if exists {};".format(TABLE_NAME))
+    values = values.reset_index()
+    sql.write_frame(values, TABLE_NAME, sqlite_db)
+    print values
 
 def get_values_joined_with_indicators():
     """
@@ -295,3 +313,4 @@ if __name__ == "__main__":
     # print get_values_as_dataframe()
     # print get_values_joined_with_indicators()
     write_values_as_scraperwiki_style_csv('/tmp')
+    write_values_as_scraperwiki_style_sql('/home/')
