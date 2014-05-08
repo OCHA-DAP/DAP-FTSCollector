@@ -114,7 +114,7 @@ def get_values_as_dataframe():
 
 def write_values_as_scraperwiki_style_csv(base_dir):
     values = get_values_as_dataframe()
-    values.replace(to_replace=[float(inf)],
+    values.replace(to_replace=[float('inf')],
                    value=['na'],
                    inplace=True)
     values['dsID'] = 'fts'
@@ -130,6 +130,9 @@ def write_values_as_scraperwiki_style_csv(base_dir):
 def write_values_as_scraperwiki_style_sql(base_dir):
     TABLE_NAME = "value"
     values = get_values_as_dataframe()
+    values.replace(to_replace=[float('inf')],
+                   value=['na'],
+                   inplace=True)
     values['dsID'] = 'fts'
     values['is_number'] = 1
     values['source'] = ''
