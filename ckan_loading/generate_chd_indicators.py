@@ -114,6 +114,9 @@ def get_values_as_dataframe():
 
 def write_values_as_scraperwiki_style_csv(base_dir):
     values = get_values_as_dataframe()
+    values.replace(to_replace=[float(inf)],
+                   value=['na'],
+                   inplace=True)
     values['dsID'] = 'fts'
     values['is_number'] = 1
     values['source'] = ''
@@ -133,7 +136,7 @@ def write_values_as_scraperwiki_style_sql(base_dir):
     values = values.rename(columns={'indicator': 'indID', 'year': 'period'})
     values = values[['dsID', 'region', 'indID', 'period', 'value', 'is_number', 'source']]
 
-    filename = os.path.join(base_dir, 'scraperwiki.sqlite')
+    filename = os.path.join(base_dir, 'ocha.db')
     sqlite_db = sqlite3.connect(filename)
     sqlite_db.execute("drop table if exists {};".format(TABLE_NAME))
     values = values.reset_index()
