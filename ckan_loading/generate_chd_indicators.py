@@ -17,6 +17,9 @@ DONOR_CERF = "Central Emergency Response Fund"
 DONOR_CHF = "Common Humanitarian Fund"
 POOLED_FUNDS = [DONOR_CERF, DONOR_ERF, DONOR_CHF]
 
+YEAR_START = 1999  # first year that FTS has data
+YEAR_END = datetime.date.today().year + 1  # next year data can start to show up near current year-end
+
 
 class PooledFundCacheByYear(object):
     """
@@ -26,6 +29,7 @@ class PooledFundCacheByYear(object):
         self.year_cache = {}
 
     # TODO investigate why this doesn't match FTS reports exactly for all values
+    # - email sent to Sean Foo about it 2014-04-21
     def get_pooled_global_allocation_for_year(self, year):
         if year not in self.year_cache:
             global_funding_by_donor =\
@@ -94,7 +98,7 @@ class IndicatorValue(object):
 
 def add_row_to_values(indicator, region, year, value):
     # perhaps the wrong place to add this, but filter out distant future data
-    if year > datetime.date.today().year + 5:
+    if year > YEAR_END:
         return
 
     VALUES.append(IndicatorValue(indicator, region, year, value))
@@ -146,6 +150,7 @@ def write_values_as_scraperwiki_style_sql(base_dir):
     sql.write_frame(values, TABLE_NAME, sqlite_db)
     print values
 
+
 def get_values_joined_with_indicators():
     """
     Useful for debugging
@@ -156,29 +161,48 @@ def get_values_joined_with_indicators():
 
 
 def populate_appeals_level_data(country):
+    """
+    Populate data based on the "appeals" concept in FTS.
+    If funding data is not associated with an appeal, it will be excluded.
+    If there was no appeal, fill in zeros for all items.
+    This unfortunately conflates "zero" vs "missing" data.
+    """
     appeals = fts_queries.fetch_appeals_json_for_country_as_dataframe(country)
 
-    if appeals.empty:
-        return
+    if not appeals.empty:
+        # group all appeals by year, columns are now just the numerical ones:
+        #  - current_requirements, emergency_id, funding, original_requirements, pledges
+        cross_appeals_by_year = appeals.groupby('year').sum().astype(float)
+        # Consolidated Appeals Process (CAP)-only
+        cap_appeals_by_year = appeals[appeals.type == 'CAP'].groupby('year').sum().astype(float)
+    else:
+        # just re-use the empty frames
+        cross_appeals_by_year = appeals
+        cap_appeals_by_year = appeals
 
-    # group all appeals by year, columns are now just the numerical ones:
-    #  - current_requirements, emergency_id, funding, original_requirements, pledges
-    cross_appeals_by_year = appeals.groupby('year').sum().astype(float)
+    for year in range(YEAR_START, YEAR_END + 1):
+        original_requirements = 0.
+        current_requirements = 0.
+        funding = 0.
 
-    # iterating by rows is not considered proper form to but it's easier to follow
-    for year, row in cross_appeals_by_year.iterrows():
-        add_row_to_values('FY010', country, year, row['original_requirements'])
-        add_row_to_values('FY020', country, year, row['current_requirements'])
-        add_row_to_values('FY040', country, year, row['funding'])
+        if year in cross_appeals_by_year.index:
+            original_requirements = cross_appeals_by_year['original_requirements'][year]
+            current_requirements = cross_appeals_by_year['current_requirements'][year]
+            funding = cross_appeals_by_year['funding'][year]
 
-        # note this is a fraction, not a percent, and not clipped to 100%
-        add_row_to_values('FY030', country, year, row['funding'] / row['current_requirements'])
+        add_row_to_values('FY010', country, year, original_requirements)
+        add_row_to_values('FY020', country, year, current_requirements)
+        add_row_to_values('FY040', country, year, funding)
 
-    # CAP-only
-    cap_appeals = appeals[appeals.type == 'CAP']
-    for appeal_id, row in cap_appeals.iterrows():
-        add_row_to_values('FA010', country, row['year'], row['current_requirements'])
-        add_row_to_values('FA140', country, row['year'], row['funding'])
+        cap_requirements = 0.
+        cap_funding = 0.
+
+        if year in cap_appeals_by_year.index:
+            cap_requirements = cap_appeals_by_year['current_requirements'][year]
+            cap_funding = cap_appeals_by_year['funding'][year]
+
+        add_row_to_values('FA010', country, year, cap_requirements)
+        add_row_to_values('FA140', country, year, cap_funding)
 
 
 def get_organizations_indexed_by_name():
@@ -192,6 +216,9 @@ def get_organizations_indexed_by_name():
 
 
 def populate_organization_level_data(country, organizations=None):
+    """
+    Populate data on funding by organization type
+    """
     if organizations is None:
         organizations = get_organizations_indexed_by_name()
 
@@ -213,24 +240,28 @@ def populate_organization_level_data(country, organizations=None):
 
         funding_dataframes_by_appeal.append(funding_by_recipient)
 
-    if not funding_dataframes_by_appeal:
-        return
+    if funding_dataframes_by_appeal:
+        funding_by_recipient_overall = pd.concat(funding_dataframes_by_appeal)
+        # now roll up by organization type
+        funding_by_type = funding_by_recipient_overall.join(organizations.type).groupby(['type', 'year']).funding.sum()
+    else:
+        funding_by_type = pd.Series()  # just an empty Series
 
-    funding_by_recipient_overall = pd.concat(funding_dataframes_by_appeal)
+    for year in range(YEAR_START, YEAR_END + 1):
+        ngo_funding = 0.
+        private_org_funding = 0.
+        un_agency_funding = 0.
 
-    # now roll up by organization type
-    funding_by_type = funding_by_recipient_overall.join(organizations.type).groupby(['type', 'year']).sum()
+        if (ORG_TYPE_NGOS, year) in funding_by_type:
+            ngo_funding = funding_by_type[(ORG_TYPE_NGOS, year)]
+        if (ORG_TYPE_PRIVATE_ORGS, year) in funding_by_type:
+            private_org_funding = funding_by_type[(ORG_TYPE_PRIVATE_ORGS, year)]
+        if (ORG_TYPE_UN_AGENCIES, year) in funding_by_type.index:
+            un_agency_funding = funding_by_type[(ORG_TYPE_UN_AGENCIES, year)]
 
-    for (org_type, year), row in funding_by_type.iterrows():
-        if org_type == ORG_TYPE_NGOS:
-            add_row_to_values('FY190', country, year, row['funding'])
-        elif org_type == ORG_TYPE_PRIVATE_ORGS:
-            add_row_to_values('FY200', country, year, row['funding'])
-        elif org_type == ORG_TYPE_UN_AGENCIES:
-            add_row_to_values('FY210', country, year, row['funding'])
-        else:
-            # note that some organizations (e.g. Red Cross/Red Crescent) fall outside the 3 indicator categories
-            print 'Ignoring funding for organization type ' + org_type
+        add_row_to_values('FY190', country, year, ngo_funding)
+        add_row_to_values('FY200', country, year, private_org_funding)
+        add_row_to_values('FY210', country, year, un_agency_funding)
 
 
 def populate_pooled_fund_data(country):
@@ -259,43 +290,56 @@ def populate_pooled_fund_data(country):
 
         contribution_dataframes_by_emergency.append(contributions)
 
-    if not contribution_dataframes_by_emergency:
-        return
+    if contribution_dataframes_by_emergency:
+        contributions_overall = pd.concat(contribution_dataframes_by_emergency)
+        # sum amount by donor-year
+        amount_by_donor_year = contributions_overall.groupby(['donor', 'year']).amount.sum()
+    else:
+        amount_by_donor_year = pd.Series()  # empty Series
 
-    contributions_overall = pd.concat(contribution_dataframes_by_emergency)
-
-    # sum amount by donor-year
-    amount_by_donor_year = contributions_overall.groupby(['donor', 'year']).amount.sum()
-
-    for (donor, year), amount in amount_by_donor_year.iteritems():
+    for year in range(YEAR_START, YEAR_END + 1):
+        # note that 'global_allocations' is close to FTS report numbers but not always exactly the same
+        # - email sent to Sean Foo about this 2014-04-21
+        # so FY360, FY500, FY540 are perhaps slightly off
         global_allocations = POOLED_FUND_CACHE.get_pooled_global_allocation_for_year(year)
+        cerf_global_allocations = global_allocations[DONOR_CERF]
+        erf_global_allocations = global_allocations[DONOR_ERF]
+        chf_global_allocations = global_allocations[DONOR_CHF]
+
         country_funding = COUNTRY_FUNDING_CACHE.get_total_country_funding_for_year(country, year)
 
-        # note that 'global_allocations' is close to FTS report numbers but not always exactly the same
-        # so FY360, FY500, FY540 are perhaps slightly off
+        cerf_amount = 0.
+        erf_amount = 0.
+        chf_amount = 0.
 
-        if donor == DONOR_CERF:
-            add_row_to_values('FY240', country, year, amount)
-            add_row_to_values('FY360', country, year, amount/global_allocations[DONOR_CERF])
-            add_row_to_values('FY370', country, year, amount/country_funding)
-        elif donor == DONOR_ERF:
-            add_row_to_values('FY380', country, year, amount)
-            add_row_to_values('FY500', country, year, amount/global_allocations[DONOR_ERF])
-            add_row_to_values('FY510', country, year, amount/country_funding)
-        elif donor == DONOR_CHF:
-            add_row_to_values('FY520', country, year, amount)
-            add_row_to_values('FY540', country, year, amount/global_allocations[DONOR_CHF])
-            add_row_to_values('FY550', country, year, amount/country_funding)
-        else:
-            raise Exception('Unexpected donor:' + donor)
+        if (DONOR_CERF, year) in amount_by_donor_year:
+            cerf_amount = amount_by_donor_year[(DONOR_CERF, year)]
+        if (DONOR_ERF, year) in amount_by_donor_year:
+            erf_amount = amount_by_donor_year[(DONOR_ERF, year)]
+        if (DONOR_CHF, year) in amount_by_donor_year:
+            chf_amount = amount_by_donor_year[(DONOR_CHF, year)]
 
-    # collapse funding across the pooled funds for each year, compare to total country funding
-    for year, pooled_funding in amount_by_donor_year.sum(level=1).iteritems():
+        # note the divisions can have divide by 0, "0" is used as fraction instead
+        # would maybe make more sense to use nan, but that will just show up as "empty" in exported CSV
+        # probably a better option would be to just create indicator for country funding and global allocation,
+        # but global allocation is problematic as it's not "per-region"
+        add_row_to_values('FY240', country, year, cerf_amount)
+        add_row_to_values('FY360', country, year, cerf_amount/cerf_global_allocations if cerf_global_allocations > 0 else 0)
+        add_row_to_values('FY370', country, year, cerf_amount/country_funding if country_funding > 0 else 0)
+
+        add_row_to_values('FY380', country, year, erf_amount)
+        add_row_to_values('FY500', country, year, erf_amount/erf_global_allocations if erf_global_allocations > 0 else 0)
+        add_row_to_values('FY510', country, year, erf_amount/country_funding if country_funding > 0 else 0)
+
+        add_row_to_values('FY520', country, year, chf_amount)
+        add_row_to_values('FY540', country, year, chf_amount/chf_global_allocations if chf_global_allocations > 0 else 0)
+        add_row_to_values('FY550', country, year, chf_amount/country_funding if country_funding > 0 else 0)
+
+        pooled_funding = cerf_amount + erf_amount + chf_amount
         country_funding = COUNTRY_FUNDING_CACHE.get_total_country_funding_for_year(country, year)
 
         add_row_to_values('FY620', country, year, pooled_funding)
         add_row_to_values('FY630', country, year, country_funding)
-        add_row_to_values('FY640', country, year, pooled_funding/country_funding)
 
 
 def populate_data_for_regions(region_list):
@@ -312,6 +356,7 @@ def populate_data_for_regions(region_list):
 if __name__ == "__main__":
     # regions_of_interest = ['COL', 'KEN', 'YEM']
     # regions_of_interest = ['SSD']  # useful for testing CHF
+    # regions_of_interest = ['AFG']  # useful for testing spotty data
     regions_of_interest = fts_queries.fetch_countries_json_as_dataframe().iso_code_A
 
     populate_data_for_regions(regions_of_interest)
