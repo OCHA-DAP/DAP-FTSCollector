@@ -146,7 +146,7 @@ def write_values_as_scraperwiki_style_sql(base_dir):
     filename = os.path.join(base_dir, 'ocha.db')
     sqlite_db = sqlite3.connect(filename)
     sqlite_db.execute("drop table if exists {};".format(TABLE_NAME))
-    values = values.reset_index()
+    #values = values.reset_index()
     sql.write_frame(values, TABLE_NAME, sqlite_db)
     print values
 
