@@ -13,7 +13,7 @@ FTS_BASE_URL = 'http://fts.unocha.org/api/v1/'
 JSON_SUFFIX = '.json'
 
 
-# leading underscores indicate "private"/internal functions
+# leading underscores indicate internal functions
 
 
 def _fetch_json_as_dataframe(url):
@@ -119,8 +119,9 @@ def fetch_appeals_json_for_country_as_dataframe(country):
     """
     Returns all known FTS Appeals for the given country.
     Accepts both names ("Slovakia") and ISO country codes ("SVK").
-    Columns:
+    Index:
     id - the FTS appeal id
+    Columns:
     emergency_id - the id for the FTS emergency associated with this appeal
     country - the full name of the country, e.g. "Slovakia"
     current_requirements - a revised amount of USD funding required by the appeal
@@ -148,8 +149,9 @@ def fetch_appeals_json_for_year_as_dataframe(year):
 def fetch_projects_json_for_appeal_as_dataframe(appeal_id):
     """
     Returns all known projects for a given appeal.
-    Columns:
+    Index:
     id - the FTS id for each project
+    Columns:
     title - the title of the project, e.g. 'Control of Locust Invasion in Turkana Kenya'
     objective - a text description of what the project hopes to achieve
     priority - a string like 'HIGH' or 'MEDIUM'
@@ -174,8 +176,23 @@ def fetch_projects_json_for_appeal_as_dataframe(appeal_id):
 
 
 def fetch_clusters_json_for_appeal_as_dataframe(appeal_id):
-    # NOTE no id present in this data
-    return _fetch_json_as_dataframe(_build_json_url('Cluster/appeal/' + str(appeal_id)))
+    """
+    Return funding data by "cluster" for a given appeal.
+    Index:
+    name - the name of the cluster (e.g. "WATER, SANITATION AND HYGIENE"). There is no id in this data. Note
+        that cluster naming seems to vary from appeal to appeal
+    Columns:
+    current_requirement - revised funding required
+    original_requirement - original funding required
+    funding - funding (USD) received
+    pledges - USD amount pledged (not yet committed/received)
+    """
+    dataframe = _fetch_json_as_dataframe(_build_json_url('Cluster/appeal/' + str(appeal_id)))
+
+    if not dataframe.empty:  # guard against empty result
+        dataframe = dataframe.set_index('name')
+
+    return dataframe
 
 
 def _fetch_contributions_json_as_dataframe_given_url(url):
@@ -191,8 +208,9 @@ def _fetch_contributions_json_as_dataframe_given_url(url):
 def fetch_contributions_json_for_appeal_as_dataframe(appeal_id):
     """
     Returns all known funding contributions towards an appeal.
-    Columns:
+    Index:
     id - the FTS id for the contribution
+    Columns:
     amount - the USD amount of the contribution
     appeal_id - the id of the associated FTS appeal (can be 0 if not associated with an appeal)
     appeal_title - the title of the associated FTS appeal
@@ -221,14 +239,17 @@ def fetch_contributions_json_for_emergency_as_dataframe(emergency_id):
 
 def _fetch_grouping_type_json_as_dataframe(middle_part, query, grouping, alias):
     """
-    Query can be one of:
+    Fetches the "grouping type" API queries (currently for funding and pledges) which are somewhat different from
+    the other API queries.
+
+    Query argument can be one of:
         Emergency=X
         Appeal=X
         Country=X
         Donor=X
         Recipient=X
         Year=X
-    Grouping can be one of:
+    Grouping argument can be one of:
         Donor
         Recipient
         Sector
@@ -237,6 +258,11 @@ def _fetch_grouping_type_json_as_dataframe(middle_part, query, grouping, alias):
         Country
         Cluster
     Alias is used to name the grouping type column and use it as an index.
+
+    Index:
+    The dataframe will be indexed by the grouping data, named by the "alias" parameter (e.g. "organization").
+    Columns:
+    There will be only one column, named by the "middle_part" parameter (e.g. "funding").
     """
     url = _build_json_url(middle_part) + '?' + query
 
@@ -259,45 +285,34 @@ def _fetch_grouping_type_json_as_dataframe(middle_part, query, grouping, alias):
     return processed_frame
 
 
-def fetch_grouping_type_json_for_appeal_as_dataframe(middle_part, appeal_id, grouping, alias):
-    return _fetch_grouping_type_json_as_dataframe(middle_part, 'Appeal=' + str(appeal_id), grouping, alias)
-
-
-def fetch_grouping_type_json_for_emergency_as_dataframe(middle_part, emergency_id, grouping, alias):
-    return _fetch_grouping_type_json_as_dataframe(middle_part, 'Emergency=' + str(emergency_id), grouping, alias)
-
-
-def fetch_grouping_type_json_for_year_as_dataframe(middle_part, year, grouping, alias):
-    return _fetch_grouping_type_json_as_dataframe(middle_part, 'Year=' + str(year), grouping, alias)
-
-
 def fetch_funding_json_for_appeal_as_dataframe(appeal_id, grouping, alias):
     """
-    Committed or contributed funds, including carry over from previous years
+    Fetches committed or contributed funds (including carry over from previous years) for an appeal.
+    See _fetch_grouping_type_json_as_dataframe for more details on how this works.
     """
-    return fetch_grouping_type_json_for_appeal_as_dataframe("funding", appeal_id, grouping, alias)
+    return _fetch_grouping_type_json_as_dataframe("funding", 'Appeal=' + str(appeal_id), grouping, alias)
 
 
 def fetch_funding_json_for_emergency_as_dataframe(emergency_id, grouping, alias):
     """
-    Committed or contributed funds, including carry over from previous years
+    Fetches committed or contributed funds (including carry over from previous years) for an emergency.
+    See _fetch_grouping_type_json_as_dataframe for more details on how this works.
     """
-    return fetch_grouping_type_json_for_emergency_as_dataframe("funding", emergency_id, grouping, alias)
+    return _fetch_grouping_type_json_as_dataframe("funding", 'Emergency=' + str(emergency_id), grouping, alias)
+
+
+def fetch_funding_json_for_year_as_dataframe(year, grouping, alias):
+    """
+    Fetches committed or contributed funds (including carry over from previous years) for a given year.
+    See _fetch_grouping_type_json_as_dataframe for more details on how this works.
+    """
+    return _fetch_grouping_type_json_as_dataframe("funding", 'Year=' + str(year), grouping, alias)
 
 
 def fetch_pledges_json_for_appeal_as_dataframe(appeal_id, grouping, alias):
     """
-    Contains uncommitted pledges, not funding that has already processed to commitment or contribution stages
+    Fetches uncommitted pledges (not funding that has already processed to commitment or contribution stages)
+    for a given appeal.
+    See _fetch_grouping_type_json_as_dataframe for more details on how this works.
     """
-    return fetch_grouping_type_json_for_appeal_as_dataframe("pledges", appeal_id, grouping, alias)
-
-
-if __name__ == "__main__":
-    # test various fetch commands (requires internet connection)
-    country = 'Chad'
-    appeal_id = 942
-
-    print fetch_sectors_json_as_dataframe()
-    print fetch_emergencies_json_for_country_as_dataframe(country)
-    print fetch_projects_json_for_appeal_as_dataframe(appeal_id)
-    print fetch_funding_json_for_appeal_as_dataframe(appeal_id)
+    return _fetch_grouping_type_json_as_dataframe("pledges", 'Appeal=' + str(appeal_id), grouping, alias)

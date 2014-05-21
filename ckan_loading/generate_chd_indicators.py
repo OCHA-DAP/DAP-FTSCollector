@@ -33,7 +33,7 @@ class PooledFundCacheByYear(object):
     def get_pooled_global_allocation_for_year(self, year):
         if year not in self.year_cache:
             global_funding_by_donor =\
-                fts_queries.fetch_grouping_type_json_for_year_as_dataframe('funding', year, 'donor', 'organization')
+                fts_queries.fetch_funding_json_for_year_as_dataframe(year, 'donor', 'organization')
 
             pooled_funds_amounts = global_funding_by_donor.funding.loc[POOLED_FUNDS]
 
@@ -57,7 +57,7 @@ class CountryFundingCacheByYear(object):
     def get_total_country_funding_for_year(self, country_code, year):
         if year not in self.year_cache:
             funding_by_country =\
-                fts_queries.fetch_grouping_type_json_for_year_as_dataframe('funding', year, 'country', 'country')
+                fts_queries.fetch_funding_json_for_year_as_dataframe(year, 'country', 'country')
 
             self.year_cache[year] = funding_by_country
 
