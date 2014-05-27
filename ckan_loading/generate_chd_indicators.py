@@ -151,15 +151,6 @@ def write_values_as_scraperwiki_style_sql(base_dir):
     print values
 
 
-def get_values_joined_with_indicators():
-    """
-    Useful for debugging
-    """
-    values = get_values_as_dataframe()
-    indicators = pd.read_csv('indicator.csv', index_col='indID')
-    return pd.merge(left=values, right=indicators, left_on='indicator', right_index=True)
-
-
 def populate_appeals_level_data(country):
     """
     Populate data based on the "appeals" concept in FTS.
@@ -361,7 +352,5 @@ if __name__ == "__main__":
 
     populate_data_for_regions(regions_of_interest)
 
-    # print get_values_as_dataframe()
-    # print get_values_joined_with_indicators()
     write_values_as_scraperwiki_style_csv('/tmp')
     write_values_as_scraperwiki_style_sql('/home/')
