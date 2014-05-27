@@ -89,6 +89,9 @@ VALUES = []
 
 
 class IndicatorValue(object):
+    """
+    A simple "struct" for the data tuple produced by this process.
+    """
     def __init__(self, indicator, region, year, value):
         self.indicator = indicator
         self.region = region
@@ -97,6 +100,9 @@ class IndicatorValue(object):
 
 
 def add_row_to_values(indicator, region, year, value):
+    """
+    Record a new data tuple
+    """
     # perhaps the wrong place to add this, but filter out distant future data
     if year > YEAR_END:
         return
@@ -105,6 +111,9 @@ def add_row_to_values(indicator, region, year, value):
 
 
 def get_values_as_dataframe():
+    """
+    Retrieve all recorded tuples as a pandas dataframe
+    """
     indicators = [ind_value.indicator for ind_value in VALUES]
     regions = [ind_value.region for ind_value in VALUES]
     years = [ind_value.year for ind_value in VALUES]
@@ -161,10 +170,10 @@ def populate_appeals_level_data(country):
     appeals = fts_queries.fetch_appeals_json_for_country_as_dataframe(country)
 
     if not appeals.empty:
-        # group all appeals by year, columns are now just the numerical ones:
+        # group/sum all appeals by year, columns are now just the numerical ones:
         #  - current_requirements, emergency_id, funding, original_requirements, pledges
         cross_appeals_by_year = appeals.groupby('year').sum().astype(float)
-        # Consolidated Appeals Process (CAP)-only
+        # do the same with Consolidated Appeals Process (CAP)-only
         cap_appeals_by_year = appeals[appeals.type == 'CAP'].groupby('year').sum().astype(float)
     else:
         # just re-use the empty frames
@@ -198,8 +207,8 @@ def populate_appeals_level_data(country):
 
 def get_organizations_indexed_by_name():
     """
-    Load organizations from FTS and change index to be name, as sadly that's what is used in
-    other API calls, so we need to join on it.
+    Load organizations from FTS and change index to be name, as sadly that
+    string is used in other API results (not id), so we need to join on it.
     This is a slow call, so it makes sense to cache it.
     """
     organizations = fts_queries.fetch_organizations_json_as_dataframe()
@@ -232,23 +241,25 @@ def populate_organization_level_data(country, organizations=None):
         funding_dataframes_by_appeal.append(funding_by_recipient)
 
     if funding_dataframes_by_appeal:
+        # combine the data across appeals
         funding_by_recipient_overall = pd.concat(funding_dataframes_by_appeal)
-        # now roll up by organization type
-        funding_by_type = funding_by_recipient_overall.join(organizations.type).groupby(['type', 'year']).funding.sum()
+        # now roll up by organization type and year
+        grouped = funding_by_recipient_overall.join(organizations.type).groupby(['type', 'year'])
+        funding_by_type_year = grouped.funding.sum()
     else:
-        funding_by_type = pd.Series()  # just an empty Series
+        funding_by_type_year = pd.Series()  # just an empty Series
 
     for year in range(YEAR_START, YEAR_END + 1):
         ngo_funding = 0.
         private_org_funding = 0.
         un_agency_funding = 0.
 
-        if (ORG_TYPE_NGOS, year) in funding_by_type:
-            ngo_funding = funding_by_type[(ORG_TYPE_NGOS, year)]
-        if (ORG_TYPE_PRIVATE_ORGS, year) in funding_by_type:
-            private_org_funding = funding_by_type[(ORG_TYPE_PRIVATE_ORGS, year)]
-        if (ORG_TYPE_UN_AGENCIES, year) in funding_by_type.index:
-            un_agency_funding = funding_by_type[(ORG_TYPE_UN_AGENCIES, year)]
+        if (ORG_TYPE_NGOS, year) in funding_by_type_year:
+            ngo_funding = funding_by_type_year[(ORG_TYPE_NGOS, year)]
+        if (ORG_TYPE_PRIVATE_ORGS, year) in funding_by_type_year:
+            private_org_funding = funding_by_type_year[(ORG_TYPE_PRIVATE_ORGS, year)]
+        if (ORG_TYPE_UN_AGENCIES, year) in funding_by_type_year.index:
+            un_agency_funding = funding_by_type_year[(ORG_TYPE_UN_AGENCIES, year)]
 
         add_row_to_values('FY190', country, year, ngo_funding)
         add_row_to_values('FY200', country, year, private_org_funding)
@@ -256,6 +267,9 @@ def populate_organization_level_data(country, organizations=None):
 
 
 def populate_pooled_fund_data(country):
+    """
+    Populate data on pooled funds (CERF, ERF, CHF)
+    """
     emergencies = fts_queries.fetch_emergencies_json_for_country_as_dataframe(country)
 
     contribution_dataframes_by_emergency = []
@@ -266,7 +280,7 @@ def populate_pooled_fund_data(country):
         if contributions.empty:
             continue
 
-        # note that is_allocation field is much cleaner and _almost_ gives the same answer,
+        # note that is_allocation field on contributions is much cleaner and _almost_ gives the same answer,
         # but found 1 instance of contribution that did not have this field set and yet looked like it should
 
         # exclude pledges
@@ -282,6 +296,7 @@ def populate_pooled_fund_data(country):
         contribution_dataframes_by_emergency.append(contributions)
 
     if contribution_dataframes_by_emergency:
+        # combine the data across emergencies
         contributions_overall = pd.concat(contribution_dataframes_by_emergency)
         # sum amount by donor-year
         amount_by_donor_year = contributions_overall.groupby(['donor', 'year']).amount.sum()
@@ -334,6 +349,9 @@ def populate_pooled_fund_data(country):
 
 
 def populate_data_for_regions(region_list):
+    """
+    Populate the various FTS data tuples for a list of regions
+    """
     # cache organizations as it's an expensive call
     organizations = get_organizations_indexed_by_name()
 
