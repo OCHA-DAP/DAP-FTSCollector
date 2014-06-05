@@ -12,14 +12,14 @@ The list of organizations for which data is reported is fetched via this
 
 Worldwide funding data is collected for each year:
 
-  - grouped by country ([example](http://fts.unocha.org/api/v1/funding.json?Year=2010&GroupBy=country))
+  - grouped by country ([example JSON](http://fts.unocha.org/api/v1/funding.json?Year=2010&GroupBy=country))
     - FY630 is the total funding for each country that year
-  - grouped by donor ([example](http://fts.unocha.org/api/v1/funding.json?Year=2010&GroupBy=donor))
-    - this is used to get pooled fund (CERF, ERF, CHF) totals (see below)
+  - grouped by donor ([example JSON](http://fts.unocha.org/api/v1/funding.json?Year=2010&GroupBy=donor))
+    - used to get pooled fund (CERF, ERF, CHF) totals (see below)
 
 Then for each country:
 
-- the list of all FTS appeals is fetched (see this [example Appeals JSON](http://fts.unocha.org/api/v1/Appeal/country/KEN.json))
+- the list of all FTS appeals is fetched (see this [example JSON](http://fts.unocha.org/api/v1/Appeal/country/KEN.json))
   - the funding is grouped by year, for all appeals and CAP appeals
   - for each year:
     - FY010 is the sum of all appeals 'original_requirements'
@@ -37,7 +37,7 @@ Then for each country:
      - FY210 is the sum of funding for UN Agencies
      - currently, other organization types are not reported
 
-- the list of all FTS emergencies is fetched (see this [example Emergencies JSON](http://fts.unocha.org/api/v1/Emergency/country/KEN.json))
+- the list of all FTS emergencies is fetched (see this [example JSON](http://fts.unocha.org/api/v1/Emergency/country/KEN.json))
   - for each emergency, the funding contributions are fetched ([example JSON](http://fts.unocha.org/api/v1/Contribution/emergency/15747.json)) 
   - contributions still in "pledge" status are excluded
   - contributions with the donor set as a pooled fund (CERF, ERF, or CHF) are kept
