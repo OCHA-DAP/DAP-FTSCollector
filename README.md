@@ -7,7 +7,7 @@ aggregated into various humanitarian indicators.
 The list of countries for which data is reported is available via this 
 [Country JSON](http://fts.unocha.org/api/v1/Country.json)
 
-The list of organizations for which data is reported is available vis this
+The list of organizations for which data is reported is available via this
 [Organization JSON](http://fts.unocha.org/api/v1/Organization.json)
 
 
@@ -22,3 +22,11 @@ For each country:
     - FA010 is the sum of CAP appeals 'current_requirements'
     - FA140 is the sum of CAP appeals 'funding'
 
+- for each appeal, its funding details are fetched by recipient
+  (see this [example JSON](http://fts.unocha.org/api/v1/funding.json?Appeal=984&GroupBy=Recipient))
+  - from the earlier Organization JSON, we know the "type" of each recipient
+  - the funding is rolled up by year and recipient type
+     - FY190 is the sum of funding for NGOs
+     - FY200 is the sum of funding for Private Organizations
+     - FY210 is the sum of funding for UN Agencies
+     - currently, other organization types are not reported
