@@ -28,8 +28,10 @@ class PooledFundCacheByYear(object):
     def __init__(self):
         self.year_cache = {}
 
-    # TODO investigate why this doesn't match FTS reports exactly for all values
-    # - email sent to Sean Foo about it 2014-04-21
+    # Note this doesn't match FTS reports exactly for all values
+    # Sean Foo explains that contributions can have a year that differs from the fund-year
+    # e.g. it's possible to have funds contributed in 2012 towards the 2013 fund
+    # unfortunately the "fund-year" version is not readily available from the API
     def get_pooled_global_allocation_for_year(self, year):
         if year not in self.year_cache:
             global_funding_by_donor =\
@@ -305,7 +307,7 @@ def populate_pooled_fund_data(country):
 
     for year in range(YEAR_START, YEAR_END + 1):
         # note that 'global_allocations' is close to FTS report numbers but not always exactly the same
-        # - email sent to Sean Foo about this 2014-04-21
+        # see notes on get_pooled_global_allocation_for_year above
         # so FY360, FY500, FY540 are perhaps slightly off
         global_allocations = POOLED_FUND_CACHE.get_pooled_global_allocation_for_year(year)
         cerf_global_allocations = global_allocations[DONOR_CERF]

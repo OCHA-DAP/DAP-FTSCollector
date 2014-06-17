@@ -222,7 +222,7 @@ def fetch_contributions_json_for_appeal_as_dataframe(appeal_id):
     status - one of 'Pledge', 'Commitment', 'Paid contribution'.
        Pledges seem to be considered not final enough to be included in "funding".
     is_allocation - 0 or 1 depending on if this is an allocation of some larger funding initiative, e.g. pooled funds?
-    year - the year of the contribution? or the year of the appeal/emergency?
+    year - the year of the contribution
     decision_date - not sure what this is
     """
     return _fetch_contributions_json_as_dataframe_given_url(_build_json_url('Contribution/appeal/' + str(appeal_id)))
