@@ -1,6 +1,8 @@
 DAP-FTSCollector
 ================
 
+ARCHIVED - no longer in use
+
 Queries the [FTS API](http://fts.unocha.org/api/Files/APIUserdocumentation.htm) for funding data, which is then
 aggregated into various humanitarian indicators.
 
